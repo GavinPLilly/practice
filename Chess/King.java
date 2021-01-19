@@ -1,7 +1,9 @@
 public class King implements Piece{
     int color;
+    boolean hasMoved;
     public King(int color) {
         this.color = color;
+        hasMoved = false;
     }
     @Override
     public int type() {
@@ -15,5 +17,11 @@ public class King implements Piece{
     }
     public int color() {
         return color;
+    }
+    public boolean hasMoved() {
+        return hasMoved;
+    }
+    public void setMoved() {
+        hasMoved = true;
     }
 }
