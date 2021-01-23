@@ -3,10 +3,6 @@ public class Knight implements Piece{
     public Knight(int color) {
         this.color = color;
     }
-    @Override
-    public int type() {
-        return 3;
-    }
     public String toString() {
         if(color == 1) {
             return "♘";

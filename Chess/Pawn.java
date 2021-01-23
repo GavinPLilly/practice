@@ -5,10 +5,6 @@ public class Pawn implements Piece{
         this.color = color;
         hasMoved = false;
     }
-    @Override
-    public int type() {
-        return 1;
-    }
     public String toString() {
         if(color == 1) {
             return "♙";
