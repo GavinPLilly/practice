@@ -1,5 +1,7 @@
 import java.util.Scanner;
 
+import javax.security.auth.kerberos.KerberosCredMessage;
+
 import java.lang.Math;
 
 public class Chess {
@@ -8,6 +10,7 @@ public class Chess {
 	int turn;
 	int white;
 	int black;
+	boolean gameover;
 
 	public Chess(boolean darkMode) {
 		board = new Piece[8][8]; //[column][row]
@@ -25,6 +28,7 @@ public class Chess {
 		setUpFakeBoard();
 
 		s = new Scanner(System.in);
+		gameover = false;
 	}
 
 	private void setUpBoard() {
@@ -56,8 +60,11 @@ public class Chess {
 	}
 
 	private void setUpFakeBoard() {
+		board[7][7] = new King(black);
+		board[7][2] = new Pawn(black);
+
 		board[0][0] = new King(white);
-		board[7][7] = new Rook(black);
+		board[0][6] = new Pawn(white);
 	}
 
 	public void displayBoard() {
@@ -84,34 +91,43 @@ public class Chess {
 		String move;
 		int[] startingSquare = {-1, -1};
 		int[] endingSquare = {-1, -1};
-		boolean valid;
-		try {
-			String tmp;
-			if(turn == white) {
-				tmp = "White";
-			}
-			else{
-				tmp = "Black";
-			}
-			System.out.println(tmp + " to move");
-			System.out.println("Type your move: [starting square] [ending square]");
-			move = s.nextLine();
-			startingSquare = getSquare(move.substring(0, 2));
-			endingSquare = getSquare(move.substring(3, 5));
-			valid = isValidMove(startingSquare, endingSquare, true);
+		String tmp;
+		if(turn == white) {
+			tmp = "White";
 		}
-		catch (Exception ex) {
-			valid = false;
+		else{
+			tmp = "Black";
 		}
-		while(!valid) {
+		String tmp2;
+		if(isInCheck()) {
+			if(isCheckMate()) {
+				if(turn == white) {
+					tmp = "Black";
+				}
+				else{
+					tmp = "White";
+				}
+				System.out.println("Checkmate. " + tmp + " wins.");
+				gameover = true;
+				return;
+			}	
+			tmp2 = ". You in check.";
+		}
+		else {
+			tmp2 = "";
+		}
+		System.out.print(tmp + " to move");
+		System.out.println(tmp2);
+		System.out.println("Type your move: [starting square] [ending square]");
+		move = s.nextLine();
+		startingSquare = getSquare(move.substring(0, 2));
+		endingSquare = getSquare(move.substring(3, 5));
+		while(!isValidMoveWithCheck(startingSquare, endingSquare)) {
 			System.out.println("Invalid Move");
 			move = s.nextLine();
 			startingSquare = getSquare(move.substring(0, 2));
 			endingSquare = getSquare(move.substring(3, 5));
-			valid = isValidMove(startingSquare, endingSquare, true);
 		}
-		board[endingSquare[0]][endingSquare[1]] = board[startingSquare[0]][startingSquare[1]];
-		board[startingSquare[0]][startingSquare[1]] = null;
 		Piece p = board[endingSquare[0]][endingSquare[1]];
 		if(p instanceof Pawn) {
 			Pawn tmp_p = (Pawn) p;
@@ -121,28 +137,44 @@ public class Chess {
 			King tmp_p = (King) p;
 			tmp_p.setMoved();
 		}
-		System.out.println(isInCheck());
+		board[endingSquare[0]][endingSquare[1]] = board[startingSquare[0]][startingSquare[1]];
+		board[startingSquare[0]][startingSquare[1]] = null;
+
+		if(board[endingSquare[0]][endingSquare[1]] instanceof Pawn) {
+			if(endingSquare[1] == 7 && turn == white) {
+				promotePawn(endingSquare);
+			}
+			if(endingSquare[1] == 0 && turn == black) {
+				promotePawn(endingSquare);
+			}
+		}
 		changeTurn();
 	}
 
 	private int[] getSquare(String move) {
 		int[] out = new int[2];
-		char row = move.charAt(0);
-		if(row > 96) {
-			out[0] = (int)row - 97;
+		try {
+			char row = move.charAt(0);
+			if(row > 96) {
+				out[0] = (int)row - 97;
+			}
+			else {
+				out[0] = (int)row - 65;
+			}
+			out[1] = move.charAt(1) - 49;
 		}
-		else {
-			out[0] = (int)row - 65;
+		catch(Exception ex) {
+			out[0] = -1;
+			out[1] = -1;
 		}
-		out[1] = move.charAt(1) - 49;
 		return out;
 	}
 
 	private boolean isValidMove(int[] start, int[] end, boolean checkColor) {
-		Piece p1 = board[start[0]][start[1]];
 		if(start[0] < 0 || start[0] > 7 || start[1] < 0 || start[1] > 7) { //if start square is out of bounds
 			return false;
 		}
+		Piece p1 = board[start[0]][start[1]];
 		if(p1 == null) { //if there's no piece on the starting square
 			return false;
 		}
@@ -194,19 +226,39 @@ public class Chess {
 		return true;
 	}
 
+	private boolean isValidMoveWithCheck(int[] start, int[] end) {
+		if(isValidMove(start, end, true) == false) {
+			return false;
+		}
+		Piece startPiece = board[start[0]][start[1]];
+		Piece endPiece = board[end[0]][end[1]];
+		board[end[0]][end[1]] = board[start[0]][start[1]];
+		board[start[0]][start[1]] = null;	
+		if(isInCheck()) {
+			board[end[0]][end[1]] = endPiece;
+			board[start[0]][start[1]] = startPiece;
+			return false;
+		}
+		board[end[0]][end[1]] = endPiece;
+		board[start[0]][start[1]] = startPiece;
+
+		return true;
+	}
+
 	private boolean isInCheck() {
 		int[] tmpStart = new int[2];
 		int[] tmpEnd = new int[2];
+		if(findKing() == null) {
+			return false;
+		}
 		int[] kingPos = findKing();
-		System.out.println("king at " + kingPos[0] + ", " + kingPos[1]);
+		tmpEnd[0] = kingPos[0];
+		tmpEnd[1] = kingPos[1];
 		for(int i = 0; i < 8; i++) {
 			for(int j = 0; j < 8; j++) {
 				if(board[i][j] != null && board[i][j].color() != turn) {
-					System.out.println("found non-null square");
 					tmpStart[0] = i;
 					tmpStart[1] = j;
-					tmpEnd[0] = kingPos[0];
-					tmpEnd[1] = kingPos[1];
 					if(isValidMove(tmpStart, tmpEnd, false)) {
 						return true;
 					}
@@ -216,13 +268,226 @@ public class Chess {
 		return false;
 	}
 
+	private int[][] findCheckers(int[] kingPos) {
+		int[] tmpStart = new int[2];
+		int[] tmpEnd = new int[2];
+		tmpEnd[0] = kingPos[0];
+		tmpEnd[1] = kingPos[1];
+		int[][] outArr = new int[2][2];
+		int index = 0;
+		for(int i = 0; i < 8; i++) {
+			for(int j = 0; j < 8; j++) {
+				if(board[i][j] != null && board[i][j].color() != turn) {
+					tmpStart[0] = i;
+					tmpStart[1] = j;
+					if(isValidMove(tmpStart, tmpEnd, false)) {
+						outArr[index][0] = i;
+						outArr[index][1] = j;
+						index++;
+					}
+				}
+			}
+		}
+		if(index == 1) {
+			outArr[index][0] = -1;
+			outArr[index][1] = -1;
+		}
+		return outArr;
+	}
+
+	private boolean isCheckMate() {
+		int[] kingPos = findKing();
+		int[][] checkers = findCheckers(kingPos);
+		if(checkers[1][0] == -1) {
+			System.out.println("Only one checker");
+			if(canKillChecker(checkers[0])) {
+				System.out.println("Can kill attacker");
+				return false;
+			}
+			if(canBlockChecker(kingPos, checkers[0])) {
+				System.out.println("Can block checker");
+				return false;
+			}
+		}
+		if(canMoveKing(kingPos)) {
+			System.out.println("Can move king");
+			return false;
+		}
+		return true;
+	}
+
+	private boolean canKillChecker(int[] checkerPos) {
+		for(int i = 0; i < 8; i++) {
+			for(int j = 0; j < 8; j++) {
+				if(board[i][j] != null) {
+					if(board[i][j].color() == turn) {
+						int[] start = {i, j};
+						if(isValidMoveWithCheck(start, checkerPos)) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	private boolean canMoveKing(int[] kingPos) {
+		int[] end = new int[2];
+		for(int i = -1; i < 2; i++) {
+			for(int j = -1; j < 2; j++) {
+				end[0] = i + kingPos[0];
+				end[1] = j + kingPos[0];
+				if(isValidMoveWithCheck(kingPos, end)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private boolean canBlockChecker(int[] kingPos, int[] checkerPos) {
+		Piece p = board[checkerPos[0]][checkerPos[1]];
+		if(p instanceof Knight) {
+			return false;
+		}
+		if(p instanceof Pawn) {
+			return false;
+		}
+		if(p instanceof Rook || p instanceof Queen) {
+			int[][] squares = findRookBlockingSquares(kingPos, checkerPos);
+			int[] tmpPos = new int[2];
+			for(int i = 0; i < 8; i++) {
+				for(int j = 0; j < 8; j++) {
+					if(board[i][j] != null && board[i][j].color() == turn) {
+						tmpPos[0] = i;
+						tmpPos[1] = j;
+						for(int k = 0; k < 6; k++) {
+							if(isValidMoveWithCheck(tmpPos, squares[k])) {
+								return true;
+							}
+						}
+					}
+				}
+			}
+		}
+		else if(p instanceof Bishop || p instanceof Queen) {
+			int[][] squares = findBishopBlockingSquares(kingPos, checkerPos);
+			int[] tmpPos = new int[2];
+			for(int i = 0; i < 8; i++) {
+				for(int j = 0; j < 8; j++) {
+					if(board[i][j] != null && board[i][j].color() == turn) {
+						tmpPos[0] = i;
+						tmpPos[1] = j;
+						for(int k = 0; k < 6; k++) {
+							if(isValidMoveWithCheck(tmpPos, squares[k])) {
+								return true;
+							}
+						}
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	private int[][] findRookBlockingSquares(int[] kingPos, int[] checkerPos) {
+		int[][] out = new int[6][2];
+		int counter;
+		if(kingPos[0] - checkerPos[0] != 0 && kingPos[1] - checkerPos[1] != 0) {
+			for(int i = 0; i < 6; i++) {
+				out[i][0] = -1;
+				out[i][1] = -1;
+			}
+			return out;
+		}
+		if(kingPos[0] == checkerPos[0]) {
+			int difference = Math.abs(kingPos[1] - checkerPos[1]);
+			int col = kingPos[0];
+			int delta;
+			if(checkerPos[1] > kingPos[1]) {
+				delta = 1;
+			}
+			else {
+				delta = -1;
+			}
+			counter = 0;
+			for(int i = 1; i < difference; i++) {
+				out[counter][0] = col;
+				out[counter][1] = kingPos[1] + (i * delta);
+				counter++;
+			}
+		}
+		else {
+			int difference = Math.abs(kingPos[0] - checkerPos[0]);
+			int row = kingPos[1];
+			int delta;
+			if(checkerPos[0] > kingPos[0]) {
+				delta = 1;
+			}
+			else {
+				delta = -1;
+			}
+			counter = 0;
+			for(int i = 1; i < difference; i++) {
+				out[counter][0] = kingPos[0] + (i * delta);
+				out[counter][1] = row;
+				counter++;
+			}
+		}
+		for(int i = counter; i < 6; i++) {
+			out[i][0] = -1;
+			out[i][1] = -1;
+		}
+		return out;
+	}
+
+	private int[][] findBishopBlockingSquares(int[] kingPos, int[] checkerPos) {
+		Piece p = board[checkerPos[0]][checkerPos[1]];
+		int[][] out = new int[6][2];
+		if(Math.abs(kingPos[0] - checkerPos[0]) != Math.abs(kingPos[1] - checkerPos[1])) {
+			for(int i = 0; i < 6; i++) {
+				out[i][0] = -1;
+				out[i][1] = -1;
+			}
+			return out;
+		}
+		int columnDelta;
+		int rowDelta;
+		int counter;
+		if(checkerPos[0] > kingPos[0]) {
+			columnDelta = 1;
+		}
+		else {
+			columnDelta = -1;
+		}
+		if(checkerPos[1] > kingPos[1]) {
+			rowDelta = 1;
+		}
+		else{
+			rowDelta = -1;
+		}
+		int difference = Math.abs(kingPos[0] - checkerPos[0]);
+		counter = 0;
+		for(int i = 1; i < difference; i++) {
+			out[counter][0] = kingPos[0] + (i * columnDelta);
+			out[counter][1] = kingPos[1] + (i * rowDelta);
+			counter++;
+		}
+		for(int i = counter; i < 6; i++) {
+			out[i][0] = -1;
+			out[i][1] = -1;
+		}
+		return out;
+	}
+
 	private int[] findKing() {
 		Piece tmp;
 		for(int i = 0; i < 8; i++) {
 			for(int j = 0; j < 8; j++) {
 				tmp = board[i][j];
 				if(tmp != null) {
-					if(tmp.color() == turn) {
+					if(tmp instanceof King && tmp.color() == turn) {
 						int[] out = {i, j};
 						return out;
 					}
@@ -385,9 +650,58 @@ public class Chess {
 			turn = white;
 		}
 	}
+
+	public boolean isOver() {
+		return gameover;
+	}
+
+	private void promotePawn(int[] pos) {
+		boolean validChoice = false;
+		String input;
+		
+		System.out.println("Pawn is being promoted. Enter a letter");
+		System.out.println("q = queen  r = rook  b = bishop  k = knight");
+		while(validChoice == false) {
+			input = s.nextLine();
+			switch(input) {
+				case "q":
+				case "Q":
+					validChoice = true;
+					board[pos[0]][pos[1]] = new Queen(turn);
+					break;
+				case "r":
+				case "R":
+					validChoice = true;
+					board[pos[0]][pos[1]] = new Rook(turn);
+					break;
+				case "b":
+				case "B":
+					validChoice = true;
+					board[pos[0]][pos[1]] = new Bishop(turn);
+					break;
+				case "k":
+				case "K":
+					validChoice = true;
+					board[pos[0]][pos[1]] = new Knight(turn);
+					break;
+			}
+		}
+		
+	}
+
+	private void printDoubleArray(int[][] a) {
+		int l1 = a.length;
+		int l2 = a[0].length;
+		for(int i = 0; i < l1; i++) {
+			for(int j = 0; j < l2; j++) {
+				System.out.print(a[i][j] + ", ");
+			}
+			System.out.println("");
+		}
+	}
 	public static void main(String[] args) {
 		Chess c = new Chess(true);
-		while(true) {
+		while(c.isOver() == false) {
 			c.displayBoard();
 			c.makeMove();
 		}
